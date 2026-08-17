@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 
-export default function Login() {
+export default function Login({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,8 +14,9 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const { token } = await api.login(email, password);
+      const { token, user } = await api.login(email, password);
       localStorage.setItem('token', token);
+      onLogin(user);
       navigate('/event');
     } catch (err) {
       setError(err.message);
@@ -56,4 +57,3 @@ export default function Login() {
     </div>
   );
 }
-
