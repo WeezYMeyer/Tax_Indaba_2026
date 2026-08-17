@@ -12,7 +12,7 @@ function useCurrentUser() {
     if (!token) return setUser(null);
     api.me().then((d) => setUser(d.user)).catch(() => setUser(null));
   }, []);
-  return user;
+  return [user, setUser];
 }
 
 function Protected({ user, children }) {
@@ -41,13 +41,13 @@ function TopBar({ user }) {
 }
 
 export default function App() {
-  const user = useCurrentUser();
+  const [user, setUser] = useCurrentUser();
 
   return (
     <div className="shell">
       <TopBar user={user} />
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Login onLogin={setUser} />} />
         <Route path="/admin" element={<Admin />} />
         <Route
           path="/event"
