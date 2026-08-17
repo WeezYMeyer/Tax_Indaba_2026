@@ -20,8 +20,10 @@ router.post('/login', (req, res) => {
 });
 
 function generatePassword() {
-  // Readable-ish random password, e.g. "k3f9-m2pq"
-  return crypto.randomBytes(4).toString('hex').match(/.{1,4}/g).join('-');
+  // Contiguous alphanumeric string, e.g. "k3f9m2pq" — no dashes, so a
+  // double-tap/double-click on mobile or desktop selects the whole thing
+  // in one go instead of stopping at a word boundary.
+  return crypto.randomBytes(4).toString('hex');
 }
 
 // Converts a ticket-tier code into the three access booleans stored per user.
