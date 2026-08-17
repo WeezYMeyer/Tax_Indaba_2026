@@ -51,7 +51,7 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 28px;
+  padding: 14px 28px;
   border-bottom: 1px solid var(--card-border);
   background: linear-gradient(180deg, rgba(14, 39, 72, 0.6), transparent);
 }
@@ -63,12 +63,12 @@ a { color: inherit; }
 }
 
 .brand-logo {
-  height: 32px;
+  height: 92px;
   width: auto;
   display: block;
 }
 .brand-logo-lg {
-  height: 46px;
+  height: 90px;
 }
 
 .eyebrow {
