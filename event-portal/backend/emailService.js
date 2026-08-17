@@ -65,11 +65,18 @@ async function sendLoginEmail({ to, name, password, access }) {
               <td style="padding:22px 32px 0;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:rgba(7,19,36,0.6);border:1px solid rgba(201,154,60,0.25);border-radius:8px;">
                   <tr>
-                    <td style="padding:16px 18px;">
+                    <td style="padding:18px 20px;">
                       <p style="color:#93a8c7;font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px;">Email</p>
-                      <p style="color:#f4efe2;font-size:14px;margin:0 0 14px;">${to}</p>
-                      <p style="color:#93a8c7;font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px;">Password</p>
-                      <p style="color:#f4efe2;font-size:17px;font-family:'Courier New',Courier,monospace;margin:0;">${password}</p>
+                      <p style="color:#f4efe2;font-size:14px;margin:0 0 16px;">${to}</p>
+                      <p style="color:#93a8c7;font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px;">Password</p>
+                      <table role="presentation" cellpadding="0" cellspacing="0" style="background:#071324;border:1px dashed rgba(201,154,60,0.4);border-radius:6px;">
+                        <tr>
+                          <td style="padding:12px 18px;">
+                            <span style="color:#e6c876;font-size:22px;font-weight:bold;font-family:'Courier New',Courier,monospace;letter-spacing:2px;">${password}</span>
+                          </td>
+                        </tr>
+                      </table>
+                      <p style="color:#5b6b85;font-size:11px;margin:8px 0 0;">Tap and hold (or double-click) the password above to select and copy it.</p>
                     </td>
                   </tr>
                 </table>
