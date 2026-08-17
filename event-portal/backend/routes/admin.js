@@ -1,0 +1,132 @@
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const { pool } = require('../db');
+const { requireAdmin } = require('../auth');
+const { sendLoginEmail } = require('../emailService');
+const { encrypt, decrypt } = require('../passwordVault');
+
+const router = express.Router();
+
+// POST /api/admin/login — separate from attendee login, gated by ADMIN_PASSWORD in .env
+router.post('/login', (req, res) => {
+  const { password } = req.body;
+  if (!password || password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Incorrect admin password' });
+  }
+  const token = jwt.sign({ isAdmin: true, id: 'admin' }, process.env.JWT_SECRET, { expiresIn: '12h' });
+  res.json({ token });
+});
+
+function generatePassword() {
+  // Readable-ish random password, e.g. "k3f9-m2pq"
+  return crypto.randomBytes(4).toString('hex').match(/.{1,4}/g).join('-');
+}
+
+// POST /api/admin/add-attendees
+// body: { attendees: [{ email, name }, ...] }
+router.post('/add-attendees', requireAdmin, async (req, res) => {
+  const { attendees } = req.body;
+  if (!Array.isArray(attendees) || attendees.length === 0) {
+    return res.status(400).json({ error: 'Provide a non-empty "attendees" array of { email, name }' });
+  }
+
+  const results = [];
+
+  for (const entry of attendees) {
+    const email = (entry.email || '').toLowerCase().trim();
+    const name = (entry.name || '').trim();
+    if (!email || !email.includes('@')) {
+      results.push({ email, status: 'skipped', reason: 'invalid email' });
+      continue;
+    }
+
+    try {
+      const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (existing.rows.length > 0) {
+        results.push({ email, status: 'skipped', reason: 'already exists' });
+        continue;
+      }
+
+      const password = generatePassword();
+      const hash = await bcrypt.hash(password, 10);
+      const encryptedPassword = encrypt(password);
+
+      const { rows } = await pool.query(
+        'INSERT INTO users (email, name, password_hash, password_encrypted) VALUES ($1, $2, $3, $4) RETURNING id',
+        [email, name, hash, encryptedPassword]
+      );
+      const userId = rows[0].id;
+
+      try {
+        await sendLoginEmail({ to: email, name, password });
+        await pool.query('UPDATE users SET email_status = $1, email_error = NULL WHERE id = $2', ['sent', userId]);
+        results.push({ email, status: 'created_and_emailed' });
+      } catch (emailErr) {
+        console.error('Email send failed for', email, emailErr);
+        await pool.query('UPDATE users SET email_status = $1, email_error = $2 WHERE id = $3', ['failed', emailErr.message, userId]);
+        results.push({ email, status: 'created_but_email_failed', reason: emailErr.message });
+      }
+    } catch (err) {
+      console.error('Failed to add attendee', email, err);
+      results.push({ email, status: 'error', reason: err.message });
+    }
+  }
+
+  res.json({ results });
+});
+
+// GET /api/admin/attendees — list all users, including decrypted password and
+// email delivery status, for the admin table.
+router.get('/attendees', requireAdmin, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT id, email, name, is_admin, email_status, email_error, password_encrypted, created_at FROM users ORDER BY created_at DESC'
+  );
+  const attendees = rows.map((r) => ({
+    id: r.id,
+    email: r.email,
+    name: r.name,
+    is_admin: r.is_admin,
+    email_status: r.email_status,
+    email_error: r.email_error,
+    password: decrypt(r.password_encrypted), // null if never set / undecryptable
+    created_at: r.created_at,
+  }));
+  res.json({ attendees });
+});
+
+// POST /api/admin/attendees/:id/resend — generate a fresh password and re-send
+// the login email (useful when the first send failed, or someone lost theirs).
+router.post('/attendees/:id/resend', requireAdmin, async (req, res) => {
+  const { rows } = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [req.params.id]);
+  const user = rows[0];
+  if (!user) return res.status(404).json({ error: 'Attendee not found' });
+
+  const password = generatePassword();
+  const hash = await bcrypt.hash(password, 10);
+  const encryptedPassword = encrypt(password);
+
+  try {
+    await sendLoginEmail({ to: user.email, name: user.name, password });
+    await pool.query(
+      'UPDATE users SET password_hash = $1, password_encrypted = $2, email_status = $3, email_error = NULL WHERE id = $4',
+      [hash, encryptedPassword, 'sent', user.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    await pool.query(
+      'UPDATE users SET password_hash = $1, password_encrypted = $2, email_status = $3, email_error = $4 WHERE id = $5',
+      [hash, encryptedPassword, 'failed', err.message, user.id]
+    );
+    res.status(502).json({ error: `Password reset, but email failed to send: ${err.message}` });
+  }
+});
+
+// DELETE /api/admin/attendees/:id — revoke an attendee's access
+router.delete('/attendees/:id', requireAdmin, async (req, res) => {
+  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+  res.json({ success: true });
+});
+
+module.exports = router;
