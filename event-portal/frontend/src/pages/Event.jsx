@@ -66,12 +66,10 @@ export default function Event({ user }) {
 
   return (
     <div className="event-page">
-      <div className="event-header">
-        <div>
-          <div className="eyebrow">13th Annual Tax Indaba</div>
-          <h1 className="event-title">'From Constraint to Capacity: Turning Fiscal Space into Sustainable Reform'</h1>
-        </div>
-        <div className="event-meta">
+      <div className="hero-banner">
+        <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="hero-logo" />
+        <p className="hero-tagline">'From Constraint to Capacity: Turning Fiscal Space into Sustainable Reform'</p>
+        <div className="event-meta hero-meta">
           <span>14–16 Sept 2026</span>
           <span className="event-meta-dot" />
           <span>The Capital On The Park, Sandton</span>
