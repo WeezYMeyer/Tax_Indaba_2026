@@ -41,9 +41,10 @@ body {
 a { color: inherit; }
 
 .shell {
-  min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 /* --- Top bar / brand lockup --- */
@@ -230,6 +231,7 @@ a { color: inherit; }
 /* --- Combined Event page (stream + chat) --- */
 .event-page {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 20px 24px 0;
