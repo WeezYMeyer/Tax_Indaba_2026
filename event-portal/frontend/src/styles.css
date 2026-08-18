@@ -326,6 +326,7 @@ a { color: inherit; }
   flex: 1;
   display: grid;
   grid-template-columns: 1fr 350px;
+  grid-template-rows: 1fr;
   gap: 18px;
   padding-bottom: 20px;
   min-height: 0;
@@ -334,6 +335,7 @@ a { color: inherit; }
 .stream-col {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 .stream-frame {
   width: 100%;
