@@ -66,75 +66,77 @@ export default function Event({ user }) {
   const activeDayInfo = displayDays.find((d) => d.day === activeDay);
 
   return (
-    <div className="event-page hero-bg-wrap">
-      <div className="day-tabs">
-        {displayDays.map((d) => (
-          <button
-            key={d.day}
-            className={`day-tab ${activeDay === d.day ? 'active' : ''} ${!d.hasAccess ? 'day-tab-locked' : ''}`}
-            onClick={() => d.hasAccess && setActiveDay(d.day)}
-            disabled={!d.hasAccess}
-            title={!d.hasAccess ? "Your ticket doesn't include this day" : undefined}
-          >
-            {d.label}
-            {!d.hasAccess && <span className="day-tab-soon">🔒</span>}
-            {d.hasAccess && !d.configured && <span className="day-tab-soon">soon</span>}
-          </button>
-        ))}
-      </div>
-
-      <div className="event-layout">
-        <div className="stream-col">
-          <div className="stream-frame">
-            {!activeDayInfo?.hasAccess ? (
-              <div className="stream-placeholder">
-                Your ticket doesn't include Day {activeDay}. Contact the organizers to upgrade your pass.
-              </div>
-            ) : embedUrl ? (
-              <iframe src={embedUrl} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Event stream" />
-            ) : streamError ? (
-              <div className="holding-slide">
-                <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="holding-slide-logo" />
-                <p className="holding-slide-day">{activeDayInfo?.label || `Day ${activeDay}`}</p>
-                <p className="holding-slide-sub">Stream starting soon — check back closer to the event.</p>
-              </div>
-            ) : (
-              <div className="stream-placeholder">Loading stream…</div>
-            )}
-          </div>
+    <div className="hero-bg-wrap">
+      <div className="event-page">
+        <div className="day-tabs">
+          {displayDays.map((d) => (
+            <button
+              key={d.day}
+              className={`day-tab ${activeDay === d.day ? 'active' : ''} ${!d.hasAccess ? 'day-tab-locked' : ''}`}
+              onClick={() => d.hasAccess && setActiveDay(d.day)}
+              disabled={!d.hasAccess}
+              title={!d.hasAccess ? "Your ticket doesn't include this day" : undefined}
+            >
+              {d.label}
+              {!d.hasAccess && <span className="day-tab-soon">🔒</span>}
+              {d.hasAccess && !d.configured && <span className="day-tab-soon">soon</span>}
+            </button>
+          ))}
         </div>
 
-        <div className="chat-col">
-          <div className="chat-scroll" ref={scrollRef}>
-            {chatBlocked ? (
-              <p style={{ color: 'var(--text-dim)', textAlign: 'center', marginTop: 30 }}>
-                Chat for this day isn't included in your ticket.
-              </p>
-            ) : (
-              <>
-                {messages.map((m, i) => (
-                  <div className="msg" key={i}>
-                    <div className="who">{m.username}</div>
-                    <div className="body">{m.content}</div>
-                  </div>
-                ))}
-                {messages.length === 0 && (
-                  <p style={{ color: 'var(--text-dim)', textAlign: 'center', marginTop: 30 }}>
-                    No messages yet — say hello.
-                  </p>
-                )}
-              </>
-            )}
+        <div className="event-layout">
+          <div className="stream-col">
+            <div className="stream-frame">
+              {!activeDayInfo?.hasAccess ? (
+                <div className="stream-placeholder">
+                  Your ticket doesn't include Day {activeDay}. Contact the organizers to upgrade your pass.
+                </div>
+              ) : embedUrl ? (
+                <iframe src={embedUrl} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Event stream" />
+              ) : streamError ? (
+                <div className="holding-slide">
+                  <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="holding-slide-logo" />
+                  <p className="holding-slide-day">{activeDayInfo?.label || `Day ${activeDay}`}</p>
+                  <p className="holding-slide-sub">Stream starting soon — check back closer to the event.</p>
+                </div>
+              ) : (
+                <div className="stream-placeholder">Loading stream…</div>
+              )}
+            </div>
           </div>
-          <form className="chat-input-row" onSubmit={send}>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={`Message as ${user?.name || 'you'}…`}
-              disabled={chatBlocked}
-            />
-            <button className="btn btn-primary" disabled={chatBlocked}>Send</button>
-          </form>
+
+          <div className="chat-col">
+            <div className="chat-scroll" ref={scrollRef}>
+              {chatBlocked ? (
+                <p style={{ color: 'var(--text-dim)', textAlign: 'center', marginTop: 30 }}>
+                  Chat for this day isn't included in your ticket.
+                </p>
+              ) : (
+                <>
+                  {messages.map((m, i) => (
+                    <div className="msg" key={i}>
+                      <div className="who">{m.username}</div>
+                      <div className="body">{m.content}</div>
+                    </div>
+                  ))}
+                  {messages.length === 0 && (
+                    <p style={{ color: 'var(--text-dim)', textAlign: 'center', marginTop: 30 }}>
+                      No messages yet — say hello.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+            <form className="chat-input-row" onSubmit={send}>
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder={`Message as ${user?.name || 'you'}…`}
+                disabled={chatBlocked}
+              />
+              <button className="btn btn-primary" disabled={chatBlocked}>Send</button>
+            </form>
+          </div>
         </div>
       </div>
 
