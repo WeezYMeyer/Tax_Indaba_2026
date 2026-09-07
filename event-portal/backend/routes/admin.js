@@ -38,9 +38,9 @@ function accessFromTier(tier) {
 }
 
 // POST /api/admin/add-attendees
-// body: { attendees: [{ email, firstName, lastName }, ...], tier: 'day1' | 'day2' | 'day3' | 'all' }
+// body: { attendees: [{ email, firstName, lastName }, ...], tier: 'day1' | 'day2' | 'day3' | 'all', sendEmail: bool }
 router.post('/add-attendees', requireAdmin, async (req, res) => {
-  const { attendees, tier } = req.body;
+  const { attendees, tier, sendEmail } = req.body;
   if (!Array.isArray(attendees) || attendees.length === 0) {
     return res.status(400).json({ error: 'Provide a non-empty "attendees" array of { email, firstName, lastName }' });
   }
@@ -80,6 +80,14 @@ router.post('/add-attendees', requireAdmin, async (req, res) => {
         [email, fullName, firstName, lastName || null, hash, encryptedPassword, access.access_day1, access.access_day2, access.access_day3]
       );
       const userId = rows[0].id;
+
+      if (!sendEmail) {
+        // Just create the account — the organizer will hand out the
+        // password themselves (e.g. the client is sending their own emails).
+        await pool.query('UPDATE users SET email_status = $1, email_error = NULL WHERE id = $2', ['not_sent', userId]);
+        results.push({ email, status: 'created' });
+        continue;
+      }
 
       try {
         await sendLoginEmail({
@@ -240,6 +248,15 @@ router.get('/attendance-report', requireAdmin, async (req, res) => {
   });
 
   res.json({ report, cpdThresholdPercent, minutesPerCpdPoint, dayDurationMinutes });
+});
+
+// POST /api/admin/clear-test-data — wipes chat messages and attendance
+// sessions (from testing before the real event), without touching attendee
+// accounts, passwords, or access tiers.
+router.post('/clear-test-data', requireAdmin, async (req, res) => {
+  await pool.query('DELETE FROM messages');
+  await pool.query('DELETE FROM attendance_sessions');
+  res.json({ success: true });
 });
 
 module.exports = router;
