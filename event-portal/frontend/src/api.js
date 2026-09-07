@@ -26,10 +26,11 @@ export const api = {
   streamAccess: (day = 1) => request(`/api/stream/access?day=${day}`),
   streamDays: () => request('/api/stream/days'),
   adminLogin: (password) => request('/api/admin/login', { method: 'POST', body: { password } }),
-  addAttendees: (attendees, tier, token) => request('/api/admin/add-attendees', { method: 'POST', body: { attendees, tier }, token }),
+  addAttendees: (attendees, tier, sendEmail, token) => request('/api/admin/add-attendees', { method: 'POST', body: { attendees, tier, sendEmail }, token }),
   listAttendees: (token) => request('/api/admin/attendees', { token }),
   removeAttendee: (id, token) => request(`/api/admin/attendees/${id}`, { method: 'DELETE', token }),
   resendAttendee: (id, token) => request(`/api/admin/attendees/${id}/resend`, { method: 'POST', token }),
   updateAttendeeAccess: (id, access, token) => request(`/api/admin/attendees/${id}/access`, { method: 'PATCH', body: access, token }),
   attendanceReport: (token) => request('/api/admin/attendance-report', { token }),
+  clearTestData: (token) => request('/api/admin/clear-test-data', { method: 'POST', token }),
 };
