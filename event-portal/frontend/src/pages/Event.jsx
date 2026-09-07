@@ -66,16 +66,6 @@ export default function Event({ user }) {
 
   return (
     <div className="event-page">
-      <div className="hero-banner">
-        <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="hero-logo" />
-        <p className="hero-tagline">'From Constraint to Capacity: Turning Fiscal Space into Sustainable Reform'</p>
-        <div className="event-meta hero-meta">
-          <span>14–16 Sept 2026</span>
-          <span className="event-meta-dot" />
-          <span>The Capital On The Park, Sandton</span>
-        </div>
-      </div>
-
       <div className="day-tabs">
         {displayDays.map((d) => (
           <button
