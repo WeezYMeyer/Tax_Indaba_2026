@@ -102,7 +102,11 @@ export default function Event({ user }) {
             ) : embedUrl ? (
               <iframe src={embedUrl} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Event stream" />
             ) : streamError ? (
-              <div className="stream-placeholder">{streamError}</div>
+              <div className="holding-slide">
+                <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="holding-slide-logo" />
+                <p className="holding-slide-day">{activeDayInfo?.label || `Day ${activeDay}`}</p>
+                <p className="holding-slide-sub">Stream starting soon — check back closer to the event.</p>
+              </div>
             ) : (
               <div className="stream-placeholder">Loading stream…</div>
             )}
