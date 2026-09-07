@@ -8,6 +8,7 @@ export default function Admin() {
 
   const [bulkText, setBulkText] = useState('');
   const [tier, setTier] = useState('all');
+  const [sendEmail, setSendEmail] = useState(false);
   const [results, setResults] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -16,6 +17,7 @@ export default function Admin() {
   const [savingAccessId, setSavingAccessId] = useState(null);
   const [report, setReport] = useState(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [clearingChat, setClearingChat] = useState(false);
 
   async function handleAdminLogin(e) {
     e.preventDefault();
@@ -64,7 +66,7 @@ export default function Admin() {
     setResults(null);
     try {
       const attendeesToAdd = parseBulk(bulkText);
-      const { results } = await api.addAttendees(attendeesToAdd, tier, adminToken);
+      const { results } = await api.addAttendees(attendeesToAdd, tier, sendEmail, adminToken);
       setResults(results);
       setBulkText('');
       loadAttendees(adminToken);
@@ -113,6 +115,19 @@ export default function Admin() {
 
   function copyToClipboard(text) {
     navigator.clipboard?.writeText(text);
+  }
+
+  async function handleClearTestData() {
+    if (!confirm('This permanently deletes all chat messages and watch-time session data (not attendee accounts). Use this once, right before sending real invite links, to clear out testing. Continue?')) return;
+    setClearingChat(true);
+    try {
+      await api.clearTestData(adminToken);
+      alert('Chat messages and session data cleared.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setClearingChat(false);
+    }
   }
 
   async function loadReport() {
@@ -180,7 +195,7 @@ export default function Admin() {
       <h1>Attendee access</h1>
       <p style={{ color: 'var(--text-dim)' }}>
         Paste one attendee per line as <code>email@example.com, First Name, Surname</code> (surname is optional, first name is required — this is what shows in chat, never their email).
-        Each new attendee gets an account and an email with their login, with access matching the tier selected below.
+        Each new attendee gets an account and a password, with access matching the tier selected below.
       </p>
 
       {error && <div className="error-msg">{error}</div>}
@@ -205,8 +220,12 @@ export default function Admin() {
             required
           />
         </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: '0.9rem', color: 'var(--text-dim)' }}>
+          <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} style={{ width: 'auto' }} />
+          Send login emails automatically (leave unchecked if you're handing out passwords yourself)
+        </label>
         <button className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Adding…' : 'Add attendees & send logins'}
+          {submitting ? 'Adding…' : sendEmail ? 'Add attendees & send logins' : 'Add attendees'}
         </button>
       </form>
 
@@ -226,9 +245,14 @@ export default function Admin() {
           {failedCount > 0 && <span className="summary-pill summary-failed">{failedCount} failed</span>}
           <span className="summary-pill">{attendees.length} total</span>
         </div>
-        <button className="btn" onClick={() => setShowPasswords((s) => !s)}>
-          {showPasswords ? 'Hide passwords' : 'Show passwords'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => setShowPasswords((s) => !s)}>
+            {showPasswords ? 'Hide passwords' : 'Show passwords'}
+          </button>
+          <button className="btn btn-danger" onClick={handleClearTestData} disabled={clearingChat}>
+            {clearingChat ? 'Clearing…' : 'Clear test chat data'}
+          </button>
+        </div>
       </div>
 
       <table className="attendees">
