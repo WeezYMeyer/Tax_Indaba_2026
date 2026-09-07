@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { api } from '../api.js';
+import SponsorBar from '../SponsorBar.jsx';
 
 export default function Event({ user }) {
   const [days, setDays] = useState([]);
@@ -65,7 +66,7 @@ export default function Event({ user }) {
   const activeDayInfo = displayDays.find((d) => d.day === activeDay);
 
   return (
-    <div className="event-page">
+    <div className="event-page hero-bg-wrap">
       <div className="day-tabs">
         {displayDays.map((d) => (
           <button
@@ -136,6 +137,8 @@ export default function Event({ user }) {
           </form>
         </div>
       </div>
+
+      <SponsorBar />
     </div>
   );
 }
