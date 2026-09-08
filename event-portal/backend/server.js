@@ -11,6 +11,7 @@ const { verifyToken } = require('./auth');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const streamRoutes = require('./routes/stream');
+const { router: tpSummitRoutes, resolveTpLead } = require('./routes/tpSummit');
 
 const app = express();
 app.use(cors());
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stream', streamRoutes);
+app.use('/api/tp-summit', tpSummitRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
@@ -39,10 +41,76 @@ io.use((socket, next) => {
   const payload = token && verifyToken(token);
   if (!payload) return next(new Error('Not authenticated'));
   socket.user = payload;
+  socket.rawToken = token;
   next();
 });
 
 io.on('connection', async (socket) => {
+  if (socket.handshake.auth?.room === 'tp-summit') {
+    return handleTpSummitConnection(socket);
+  }
+  return handleDayConnection(socket);
+});
+
+// --- TP Summit: separate free mini-event, own chat room + watch tracking ---
+async function handleTpSummitConnection(socket) {
+  const lead = await resolveTpLead(socket.rawToken);
+  if (!lead) {
+    socket.emit('access-denied', { message: 'Not authenticated for TP Summit.' });
+    socket.disconnect(true);
+    return;
+  }
+
+  socket.join('tp-summit');
+  console.log(`${lead.email} connected to tp-summit`);
+
+  let sessionId = null;
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO tp_summit_sessions (lead_id) VALUES ($1) RETURNING id',
+      [lead.id]
+    );
+    sessionId = rows[0].id;
+  } catch (err) {
+    console.error('Failed to start TP Summit session', err);
+  }
+
+  const { rows: history } = await pool.query(
+    'SELECT username, content, created_at FROM tp_summit_messages ORDER BY created_at DESC LIMIT 50'
+  );
+  socket.emit('history', history.reverse());
+
+  socket.on('chat:message', async (content) => {
+    const text = String(content || '').trim().slice(0, 1000);
+    if (!text) return;
+
+    const username = lead.name || lead.email;
+    await pool.query(
+      'INSERT INTO tp_summit_messages (lead_id, username, content) VALUES ($1, $2, $3)',
+      [lead.id, username, text]
+    );
+    io.to('tp-summit').emit('chat:message', { username, content: text, created_at: new Date().toISOString() });
+  });
+
+  socket.on('disconnect', async () => {
+    console.log(`${lead.email} disconnected from tp-summit`);
+    if (sessionId) {
+      try {
+        await pool.query(
+          `UPDATE tp_summit_sessions
+           SET ended_at = NOW(), duration_seconds = EXTRACT(EPOCH FROM (NOW() - started_at))
+           WHERE id = $1`,
+          [sessionId]
+        );
+      } catch (err) {
+        console.error('Failed to close TP Summit session', err);
+      }
+    }
+  });
+}
+
+// --- Day 1/2/3 chat (existing behavior, unchanged) ---
+async function handleDayConnection(socket) {
   // Which day's chat room this connection belongs to (1, 2, or 3).
   // The frontend passes this when connecting, and reconnects with a new
   // value whenever the person switches day tabs.
@@ -123,7 +191,7 @@ io.on('connection', async (socket) => {
       }
     }
   });
-});
+}
 
 const PORT = process.env.PORT || 4000;
 
