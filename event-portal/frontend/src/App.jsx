@@ -25,10 +25,21 @@ function Protected({ user, children }) {
 
 function TopBar({ user }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isTpSummit = location.pathname.startsWith('/tp-summit');
+
   function logout() {
     localStorage.removeItem('token');
     navigate('/login');
   }
+
+  // TP Summit is its own free, separately-branded mini-event — the main
+  // Tax Indaba mark doesn't belong on it, so no top bar shows there at all
+  // (its own page header carries the "TP Summit" identity instead).
+  if (isTpSummit) {
+    return null;
+  }
+
   return (
     <div className="topbar">
       <div className="brand">
