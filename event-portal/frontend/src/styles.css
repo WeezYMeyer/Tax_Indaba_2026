@@ -720,3 +720,31 @@ table.attendees td {
     height: 38px;
   }
 }
+
+/* --- TP Summit --- */
+.tp-bg-wrap {
+  background-image:
+    linear-gradient(180deg, rgba(7, 19, 36, 0.5), rgba(7, 19, 36, 0.7)),
+    url('/tp-summit-bg.png');
+}
+.tp-summit-header {
+  text-align: center;
+  padding-bottom: 20px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--card-border);
+}
+.tp-summit-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 2rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+  margin: 4px 0 8px;
+}
+.day-tab-tp {
+  border-color: rgba(90, 150, 170, 0.4);
+}
+.day-tab-tp .day-tab-soon {
+  color: var(--gold-light);
+}
