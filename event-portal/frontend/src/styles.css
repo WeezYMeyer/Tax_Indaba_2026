@@ -748,3 +748,27 @@ table.attendees td {
 .day-tab-tp .day-tab-soon {
   color: var(--gold-light);
 }
+
+/* --- TP Summit teal theme (pulled from the bridge/harbour background photo) ---
+   Overrides the same CSS variables every component already uses (buttons,
+   cards, tabs, chat, holding slide) so nothing needs its own duplicate
+   styling — it just re-themes gold -> teal wherever .tp-theme wraps it. */
+.tp-theme {
+  --navy-deep: #051a20;
+  --navy: #0c2b33;
+  --navy-mid: #113640;
+  --navy-light: #184652;
+  --card: #0e323b;
+  --card-border: rgba(79, 209, 217, 0.24);
+  --gold: #3fc4cf;
+  --gold-light: #7fe0e8;
+  --gold-deep: #1f8f9c;
+  --text-dim: #8fb4bb;
+}
+.tp-theme .day-tab-tp {
+  border-color: var(--gold);
+}
+.tp-theme .day-tab.active,
+.tp-theme .btn-primary {
+  color: #04262b;
+}
