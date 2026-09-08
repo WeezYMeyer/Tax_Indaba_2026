@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import Login from './pages/Login.jsx';
 import Event from './pages/Event.jsx';
 import Admin from './pages/Admin.jsx';
+import TPSummit from './pages/TPSummit.jsx';
 import { api } from './api.js';
 
 function useCurrentUser() {
@@ -49,6 +50,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login onLogin={setUser} />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/tp-summit" element={<TPSummit />} />
         <Route
           path="/event"
           element={<Protected user={user}><Event user={user} /></Protected>}
