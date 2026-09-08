@@ -1,4 +1,4 @@
-const SPONSOR_COUNT = 7;
+const SPONSOR_COUNT = 13;
 
 export default function SponsorBar() {
   return (
