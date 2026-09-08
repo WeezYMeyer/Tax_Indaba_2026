@@ -71,9 +71,10 @@ export default function Event({ user }) {
 
   const displayDays = [...(days.length ? days : [{ day: 1, label: 'Day 1', configured: true, hasAccess: true }]), TP_TAB];
   const activeDayInfo = displayDays.find((d) => d.day === activeDay);
+  const isTpTab = activeDayInfo?.isTpSummit;
 
   return (
-    <div className="hero-bg-wrap">
+    <div className={`hero-bg-wrap ${isTpTab ? 'tp-bg-wrap tp-theme' : ''}`}>
       <div className="event-page">
         <div className="day-tabs">
           {displayDays.map((d) => (
@@ -103,10 +104,10 @@ export default function Event({ user }) {
                 <iframe src={embedUrl} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Event stream" />
               ) : streamError ? (
                 <div className="holding-slide">
-                  <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="holding-slide-logo" />
+                  {!isTpTab && <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="holding-slide-logo" />}
                   <p className="holding-slide-day">{activeDayInfo?.label || `Day ${activeDay}`}</p>
                   <p className="holding-slide-sub">
-                    {activeDayInfo?.isTpSummit
+                    {isTpTab
                       ? 'Live 15 September 2026 — check back then to watch.'
                       : 'Stream starting soon — check back closer to the event.'}
                   </p>
