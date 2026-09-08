@@ -70,7 +70,7 @@ export default function TPSummit() {
 
   if (!token) {
     return (
-      <div className="hero-bg-wrap tp-bg-wrap">
+      <div className="hero-bg-wrap tp-bg-wrap tp-theme">
         <div className="center-stage">
           <div className="pass-card">
             <div className="eyebrow" style={{ marginBottom: 4 }}>Free To Attend</div>
@@ -101,7 +101,7 @@ export default function TPSummit() {
   }
 
   return (
-    <div className="hero-bg-wrap tp-bg-wrap">
+    <div className="hero-bg-wrap tp-bg-wrap tp-theme">
       <div className="event-page">
         <div className="tp-summit-header">
           <div className="eyebrow">You're watching</div>
@@ -118,7 +118,6 @@ export default function TPSummit() {
                 <iframe src={embedUrl} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="TP Summit stream" />
               ) : streamError ? (
                 <div className="holding-slide">
-                  <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="holding-slide-logo" />
                   <p className="holding-slide-day">TP Summit</p>
                   <p className="holding-slide-sub">Live 15 September 2026 — check back then to watch.</p>
                 </div>
