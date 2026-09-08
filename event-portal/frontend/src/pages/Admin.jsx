@@ -18,6 +18,8 @@ export default function Admin() {
   const [report, setReport] = useState(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [clearingChat, setClearingChat] = useState(false);
+  const [tpLeads, setTpLeads] = useState(null);
+  const [loadingTpLeads, setLoadingTpLeads] = useState(false);
 
   async function handleAdminLogin(e) {
     e.preventDefault();
@@ -162,6 +164,39 @@ export default function Admin() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `cpd-attendance-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function loadTpLeads() {
+    setLoadingTpLeads(true);
+    try {
+      const data = await api.tpSummitLeads(adminToken);
+      setTpLeads(data.leads);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingTpLeads(false);
+    }
+  }
+
+  function downloadTpLeadsCsv() {
+    if (!tpLeads) return;
+    const header = ['Email', 'Name', 'Captured At', 'Minutes Watched'];
+    const rows = tpLeads.map((l) => [
+      l.email,
+      l.name || '',
+      new Date(l.captured_at).toLocaleString(),
+      l.minutesWatched,
+    ]);
+    const csv = [header, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tp-summit-leads-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -370,6 +405,49 @@ export default function Admin() {
                   <td><strong>{r.cpdPoints}</strong></td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="report-section">
+        <div className="admin-table-header">
+          <div>
+            <h1 style={{ fontSize: '1.3rem', marginBottom: 4 }}>TP Summit — who watched</h1>
+            <p style={{ color: 'var(--text-dim)', margin: 0, fontSize: '0.85rem' }}>
+              Everyone who entered their details for TP Summit, whether via the public link or the "TP Summit" tab on /event, plus their watch time.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={loadTpLeads} disabled={loadingTpLeads}>
+              {loadingTpLeads ? 'Loading…' : tpLeads ? 'Refresh' : 'Load list'}
+            </button>
+            {tpLeads && <button className="btn btn-primary" onClick={downloadTpLeadsCsv}>Download CSV</button>}
+          </div>
+        </div>
+
+        {tpLeads && (
+          <table className="attendees" style={{ marginTop: 16 }}>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Captured</th>
+                <th>Minutes Watched</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tpLeads.map((l) => (
+                <tr key={l.email}>
+                  <td>{l.email}</td>
+                  <td>{l.name || '—'}</td>
+                  <td>{new Date(l.captured_at).toLocaleString()}</td>
+                  <td>{l.minutesWatched}m</td>
+                </tr>
+              ))}
+              {tpLeads.length === 0 && (
+                <tr><td colSpan={4} style={{ color: 'var(--text-dim)' }}>No one has registered for TP Summit yet.</td></tr>
+              )}
             </tbody>
           </table>
         )}
