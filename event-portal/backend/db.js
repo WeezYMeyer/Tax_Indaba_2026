@@ -65,6 +65,34 @@ async function initSchema() {
     );
   `);
 
+  // --- TP Summit: a separate, free, email-gated mini-event ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tp_summit_leads (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      captured_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tp_summit_sessions (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER REFERENCES tp_summit_leads(id) ON DELETE CASCADE,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ended_at TIMESTAMPTZ,
+      duration_seconds INTEGER
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tp_summit_messages (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER REFERENCES tp_summit_leads(id) ON DELETE SET NULL,
+      username TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
   console.log('Database schema ready.');
 }
 
