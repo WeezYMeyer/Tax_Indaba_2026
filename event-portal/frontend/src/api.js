@@ -33,4 +33,7 @@ export const api = {
   updateAttendeeAccess: (id, access, token) => request(`/api/admin/attendees/${id}/access`, { method: 'PATCH', body: access, token }),
   attendanceReport: (token) => request('/api/admin/attendance-report', { token }),
   clearTestData: (token) => request('/api/admin/clear-test-data', { method: 'POST', token }),
+  tpSummitCapture: (email, name) => request('/api/tp-summit/capture', { method: 'POST', body: { email, name } }),
+  tpSummitAccess: (token) => request('/api/tp-summit/access', { token }),
+  tpSummitLeads: (token) => request('/api/admin/tp-summit-leads', { token }),
 };
