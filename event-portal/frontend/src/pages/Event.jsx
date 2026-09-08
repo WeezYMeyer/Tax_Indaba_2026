@@ -3,6 +3,8 @@ import { io } from 'socket.io-client';
 import { api } from '../api.js';
 import SponsorBar from '../SponsorBar.jsx';
 
+const TP_TAB = { day: 'tp-summit', label: 'TP Summit', configured: true, hasAccess: true, isTpSummit: true };
+
 export default function Event({ user }) {
   const [days, setDays] = useState([]);
   const [activeDay, setActiveDay] = useState(1);
@@ -28,19 +30,24 @@ export default function Event({ user }) {
       .catch(() => setDays([{ day: 1, label: 'Day 1', configured: true, hasAccess: true }]));
   }, []);
 
-  // Load the stream embed + (re)connect chat whenever the active day changes
+  // Load the stream embed + (re)connect chat whenever the active tab changes.
+  // TP Summit is free and uses its own dedicated chat room + access check,
+  // separate from the ticketed Day 1/2/3 rooms.
   useEffect(() => {
     setEmbedUrl(null);
     setStreamError('');
     setMessages([]);
     setChatBlocked(false);
 
-    api.streamAccess(activeDay)
+    const token = localStorage.getItem('token');
+    const isTp = activeDay === 'tp-summit';
+
+    const accessCall = isTp ? api.tpSummitAccess(token) : api.streamAccess(activeDay);
+    accessCall
       .then((data) => setEmbedUrl(data.embedUrl))
       .catch((err) => setStreamError(err.message));
 
-    const token = localStorage.getItem('token');
-    const socket = io('/', { auth: { token, day: activeDay } });
+    const socket = io('/', isTp ? { auth: { token, room: 'tp-summit' } } : { auth: { token, day: activeDay } });
     socketRef.current = socket;
 
     socket.on('history', (history) => setMessages(history));
@@ -62,7 +69,7 @@ export default function Event({ user }) {
     setDraft('');
   }
 
-  const displayDays = days.length ? days : [{ day: 1, label: 'Day 1', configured: true, hasAccess: true }];
+  const displayDays = [...(days.length ? days : [{ day: 1, label: 'Day 1', configured: true, hasAccess: true }]), TP_TAB];
   const activeDayInfo = displayDays.find((d) => d.day === activeDay);
 
   return (
@@ -72,7 +79,7 @@ export default function Event({ user }) {
           {displayDays.map((d) => (
             <button
               key={d.day}
-              className={`day-tab ${activeDay === d.day ? 'active' : ''} ${!d.hasAccess ? 'day-tab-locked' : ''}`}
+              className={`day-tab ${activeDay === d.day ? 'active' : ''} ${!d.hasAccess ? 'day-tab-locked' : ''} ${d.isTpSummit ? 'day-tab-tp' : ''}`}
               onClick={() => d.hasAccess && setActiveDay(d.day)}
               disabled={!d.hasAccess}
               title={!d.hasAccess ? "Your ticket doesn't include this day" : undefined}
@@ -80,6 +87,7 @@ export default function Event({ user }) {
               {d.label}
               {!d.hasAccess && <span className="day-tab-soon">🔒</span>}
               {d.hasAccess && !d.configured && <span className="day-tab-soon">soon</span>}
+              {d.isTpSummit && <span className="day-tab-soon">free</span>}
             </button>
           ))}
         </div>
@@ -97,7 +105,11 @@ export default function Event({ user }) {
                 <div className="holding-slide">
                   <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="holding-slide-logo" />
                   <p className="holding-slide-day">{activeDayInfo?.label || `Day ${activeDay}`}</p>
-                  <p className="holding-slide-sub">Stream starting soon — check back closer to the event.</p>
+                  <p className="holding-slide-sub">
+                    {activeDayInfo?.isTpSummit
+                      ? 'Live 15 September 2026 — check back then to watch.'
+                      : 'Stream starting soon — check back closer to the event.'}
+                  </p>
                 </div>
               ) : (
                 <div className="stream-placeholder">Loading stream…</div>
