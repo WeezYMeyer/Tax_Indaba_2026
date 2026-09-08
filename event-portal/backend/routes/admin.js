@@ -259,4 +259,34 @@ router.post('/clear-test-data', requireAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// GET /api/admin/tp-summit-leads — everyone who's captured their email for
+// TP Summit (via the public link or the "TP Summit" tab on /event), plus
+// how many minutes they've watched.
+router.get('/tp-summit-leads', requireAdmin, async (req, res) => {
+  const { rows: leads } = await pool.query(
+    'SELECT id, email, name, captured_at FROM tp_summit_leads ORDER BY captured_at DESC'
+  );
+
+  const { rows: sessionRows } = await pool.query(`
+    SELECT
+      lead_id,
+      SUM(COALESCE(duration_seconds, EXTRACT(EPOCH FROM (NOW() - started_at)))) AS total_seconds
+    FROM tp_summit_sessions
+    GROUP BY lead_id
+  `);
+  const minutesByLead = {};
+  for (const row of sessionRows) {
+    minutesByLead[row.lead_id] = Math.round(Number(row.total_seconds) / 60);
+  }
+
+  const result = leads.map((l) => ({
+    email: l.email,
+    name: l.name,
+    captured_at: l.captured_at,
+    minutesWatched: minutesByLead[l.id] || 0,
+  }));
+
+  res.json({ leads: result });
+});
+
 module.exports = router;
