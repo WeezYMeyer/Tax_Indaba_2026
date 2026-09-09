@@ -157,10 +157,12 @@ router.post('/attendees/:id/resend', requireAdmin, async (req, res) => {
   const user = rows[0];
   if (!user) return res.status(404).json({ error: 'Attendee not found' });
 
-  const password = generatePassword();
-  const hash = await bcrypt.hash(password, 10);
-  const encryptedPassword = encrypt(password);
-  const access = { day1: user.access_day1, day2: user.access_day2, day3: user.access_day3 };
+  function generatePassword() {
+  // 6-digit numeric code — easy to type on a phone keypad (no letters,
+  // no shift key, no ambiguous characters like 0/O or 1/l), while still
+  // giving a million possible combinations.
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
 
   try {
     await sendLoginEmail({ to: user.email, name: user.name, password, access });
