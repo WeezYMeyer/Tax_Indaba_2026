@@ -20,6 +20,9 @@ export default function Admin() {
   const [clearingChat, setClearingChat] = useState(false);
   const [tpLeads, setTpLeads] = useState(null);
   const [loadingTpLeads, setLoadingTpLeads] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   async function handleAdminLogin(e) {
     e.preventDefault();
@@ -224,6 +227,24 @@ export default function Admin() {
   const sentCount = attendees.filter((a) => a.email_status === 'sent').length;
   const failedCount = attendees.filter((a) => a.email_status === 'failed').length;
 
+  const filteredAttendees = attendees.filter((a) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      a.email.toLowerCase().includes(q) ||
+      (a.firstName || '').toLowerCase().includes(q) ||
+      (a.lastName || '').toLowerCase().includes(q)
+    );
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredAttendees.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedAttendees = filteredAttendees.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  function handleSearchChange(value) {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  }
+
   return (
     <div className="admin-wrap">
       <div className="eyebrow">Admin</div>
@@ -290,6 +311,15 @@ export default function Admin() {
         </div>
       </div>
 
+      <div className="field" style={{ marginTop: 14 }}>
+        <input
+          type="text"
+          placeholder="Search by email or name…"
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+        />
+      </div>
+
       <table className="attendees">
         <thead>
           <tr>
@@ -304,7 +334,7 @@ export default function Admin() {
           </tr>
         </thead>
         <tbody>
-          {attendees.map((a) => (
+          {pagedAttendees.map((a) => (
             <tr key={a.id}>
               <td>{a.email}</td>
               <td>{a.firstName || '—'}</td>
@@ -357,8 +387,24 @@ export default function Admin() {
               </td>
             </tr>
           ))}
+          {pagedAttendees.length === 0 && (
+            <tr><td colSpan={8} style={{ color: 'var(--text-dim)' }}>No attendees match that search.</td></tr>
+          )}
         </tbody>
       </table>
+
+      {filteredAttendees.length > 0 && (
+        <div className="pagination-row">
+          <span className="pagination-summary">
+            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredAttendees.length)} of {filteredAttendees.length}
+          </span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className="btn" disabled={safePage <= 1} onClick={() => setCurrentPage((p) => p - 1)}>Previous</button>
+            <span className="pagination-summary">Page {safePage} of {totalPages}</span>
+            <button className="btn" disabled={safePage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)}>Next</button>
+          </div>
+        </div>
+      )}
 
       <div className="report-section">
         <div className="admin-table-header">
