@@ -20,10 +20,10 @@ router.post('/login', (req, res) => {
 });
 
 function generatePassword() {
-  // Contiguous alphanumeric string, e.g. "k3f9m2pq" — no dashes, so a
-  // double-tap/double-click on mobile or desktop selects the whole thing
-  // in one go instead of stopping at a word boundary.
-  return crypto.randomBytes(4).toString('hex');
+  // 6-digit numeric code — easy to type on a phone keypad (no letters,
+  // no shift key, no ambiguous characters like 0/O or 1/l), while still
+  // giving a million possible combinations.
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
 
 // Converts a ticket-tier code into the three access booleans stored per user.
@@ -157,12 +157,10 @@ router.post('/attendees/:id/resend', requireAdmin, async (req, res) => {
   const user = rows[0];
   if (!user) return res.status(404).json({ error: 'Attendee not found' });
 
-  function generatePassword() {
-  // 6-digit numeric code — easy to type on a phone keypad (no letters,
-  // no shift key, no ambiguous characters like 0/O or 1/l), while still
-  // giving a million possible combinations.
-  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-}
+  const password = generatePassword();
+  const hash = await bcrypt.hash(password, 10);
+  const encryptedPassword = encrypt(password);
+  const access = { day1: user.access_day1, day2: user.access_day2, day3: user.access_day3 };
 
   try {
     await sendLoginEmail({ to: user.email, name: user.name, password, access });
