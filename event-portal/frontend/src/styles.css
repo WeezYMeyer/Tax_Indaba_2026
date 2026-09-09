@@ -772,3 +772,17 @@ table.attendees td {
 .tp-theme .btn-primary {
   color: #04262b;
 }
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pagination-summary {
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
