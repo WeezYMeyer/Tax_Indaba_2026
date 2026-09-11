@@ -419,11 +419,17 @@ a { color: inherit; }
 .stream-col {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-height: 0;
 }
 .stream-frame {
-  width: 100%;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   aspect-ratio: 16 / 9;
+  flex-shrink: 0;
   background: #000;
   border-radius: var(--radius);
   overflow: hidden;
