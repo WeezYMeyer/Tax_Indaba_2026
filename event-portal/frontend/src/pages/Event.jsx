@@ -101,7 +101,13 @@ export default function Event({ user }) {
                   Your ticket doesn't include Day {activeDay}. Contact the organizers to upgrade your pass.
                 </div>
               ) : embedUrl ? (
-                <iframe src={embedUrl} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="Event stream" />
+                <iframe
+  src={embedUrl}
+  allow="autoplay; fullscreen; picture-in-picture; encrypted-media; web-share"
+  referrerPolicy="strict-origin-when-cross-origin"
+  allowFullScreen
+  title="Event stream"
+/>
               ) : streamError ? (
                 <div className="holding-slide">
                   {!isTpTab && <img src="/tax-indaba-logo.png" alt="Tax Indaba" className="holding-slide-logo" />}
