@@ -231,7 +231,6 @@ a { color: inherit; }
 /* --- Combined Event page (stream + chat) --- */
 .event-page {
   flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 20px 24px 0;
@@ -410,10 +409,9 @@ a { color: inherit; }
   flex: 1;
   display: grid;
   grid-template-columns: 1fr 350px;
-  grid-template-rows: 1fr;
+  grid-template-rows: auto;
   gap: 18px;
   padding-bottom: 20px;
-  min-height: 0;
 }
 
 .stream-col {
@@ -421,7 +419,6 @@ a { color: inherit; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 0;
 }
 .stream-frame {
   width: auto;
