@@ -6,7 +6,8 @@ export default function Admin() {
   const [pw, setPw] = useState('');
   const [error, setError] = useState('');
 
-  const [bulkText, setBulkText] = useState('');
+  const [namesText, setNamesText] = useState('');
+  const [emailsText, setEmailsText] = useState('');
   const [tier, setTier] = useState('all');
   const [sendEmail, setSendEmail] = useState(false);
   const [results, setResults] = useState(null);
@@ -49,31 +50,56 @@ export default function Admin() {
     if (adminToken) loadAttendees(adminToken);
   }, [adminToken]);
 
-  function parseBulk(text) {
-    // Accepts lines like: "email@example.com, First Name, Surname"
+  // Splits "Jane Doe" -> firstName "Jane", lastName "Doe" (everything after
+  // the first word). Handles multi-word surnames like "Jane Van Der Merwe".
+  function parseNames(text) {
     return text
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean)
       .map((line) => {
-        const [email, firstName, ...rest] = line.split(',');
+        const parts = line.split(/\s+/);
         return {
-          email: (email || '').trim(),
-          firstName: (firstName || '').trim(),
-          lastName: rest.join(',').trim(),
+          firstName: parts[0] || '',
+          lastName: parts.slice(1).join(' '),
         };
       });
   }
 
+  function parseEmails(text) {
+    return text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
+  const parsedNames = parseNames(namesText);
+  const parsedEmails = parseEmails(emailsText);
+  const countsMismatch = namesText.trim() !== '' && emailsText.trim() !== '' && parsedNames.length !== parsedEmails.length;
+
   async function handleBulkSubmit(e) {
     e.preventDefault();
+    setError('');
+    if (parsedNames.length === 0 || parsedEmails.length === 0) {
+      setError('Paste at least one name and one email.');
+      return;
+    }
+    if (countsMismatch) {
+      setError(`Names list has ${parsedNames.length} line(s) but Emails list has ${parsedEmails.length} — they're matched up line-by-line, so the counts need to match. Check for a blank line or an extra row.`);
+      return;
+    }
     setSubmitting(true);
     setResults(null);
     try {
-      const attendeesToAdd = parseBulk(bulkText);
+      const attendeesToAdd = parsedNames.map((n, i) => ({
+        email: parsedEmails[i],
+        firstName: n.firstName,
+        lastName: n.lastName,
+      }));
       const { results } = await api.addAttendees(attendeesToAdd, tier, sendEmail, adminToken);
       setResults(results);
-      setBulkText('');
+      setNamesText('');
+      setEmailsText('');
       loadAttendees(adminToken);
     } catch (err) {
       setError(err.message);
@@ -250,8 +276,10 @@ export default function Admin() {
       <div className="eyebrow">Admin</div>
       <h1>Attendee access</h1>
       <p style={{ color: 'var(--text-dim)' }}>
-        Paste one attendee per line as <code>email@example.com, First Name, Surname</code> (surname is optional, first name is required — this is what shows in chat, never their email).
-        Each new attendee gets an account and a password, with access matching the tier selected below.
+        Copy the Name column from wherever you're given the list and paste it in the left box, one name per line —
+        then copy the Email column and paste it in the right box, same order. Line 1 of each pairs together, line 2
+        pairs together, and so on. Surname is optional (first word of each line is treated as the first name, the
+        rest as surname — this is what shows in chat, never their email).
       </p>
 
       {error && <div className="error-msg">{error}</div>}
@@ -266,21 +294,40 @@ export default function Admin() {
             <option value="day3">Day 3 only — Wed 16 Sept</option>
           </select>
         </div>
-        <div className="field">
-          <label>Attendees (email, first name, surname)</label>
-          <textarea
-            rows={6}
-            placeholder={'jane@example.com, Jane, Doe\njohn@example.com, John, Smith'}
-            value={bulkText}
-            onChange={(e) => setBulkText(e.target.value)}
-            required
-          />
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: '1 1 260px' }}>
+            <label>Names (one per line — "First Last")</label>
+            <textarea
+              rows={10}
+              placeholder={'Jane Doe\nJohn Smith'}
+              value={namesText}
+              onChange={(e) => setNamesText(e.target.value)}
+              required
+            />
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: 4 }}>
+              {parsedNames.length} name{parsedNames.length === 1 ? '' : 's'}
+            </div>
+          </div>
+          <div className="field" style={{ flex: '1 1 260px' }}>
+            <label>Emails (one per line, same order)</label>
+            <textarea
+              rows={10}
+              placeholder={'jane@example.com\njohn@example.com'}
+              value={emailsText}
+              onChange={(e) => setEmailsText(e.target.value)}
+              required
+            />
+            <div style={{ fontSize: '0.78rem', color: countsMismatch ? 'var(--danger)' : 'var(--text-dim)', marginTop: 4 }}>
+              {parsedEmails.length} email{parsedEmails.length === 1 ? '' : 's'}
+              {countsMismatch && ' — doesn\'t match the names list yet'}
+            </div>
+          </div>
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: '0.9rem', color: 'var(--text-dim)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0', fontSize: '0.9rem', color: 'var(--text-dim)' }}>
           <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} style={{ width: 'auto' }} />
           Send login emails automatically (leave unchecked if you're handing out passwords yourself)
         </label>
-        <button className="btn btn-primary" disabled={submitting}>
+        <button className="btn btn-primary" disabled={submitting || countsMismatch}>
           {submitting ? 'Adding…' : sendEmail ? 'Add attendees & send logins' : 'Add attendees'}
         </button>
       </form>
