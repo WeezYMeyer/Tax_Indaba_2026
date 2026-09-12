@@ -36,4 +36,7 @@ export const api = {
   tpSummitCapture: (email, name) => request('/api/tp-summit/capture', { method: 'POST', body: { email, name } }),
   tpSummitAccess: (token) => request('/api/tp-summit/access', { token }),
   tpSummitLeads: (token) => request('/api/admin/tp-summit-leads', { token }),
+  supportStart: (name, email) => request('/api/support/start', { method: 'POST', body: { name, email } }),
+  adminSupportConversations: (token) => request('/api/admin/support/conversations', { token }),
+  adminSupportMessages: (id, token) => request(`/api/admin/support/conversations/${id}/messages`, { token }),
 };
