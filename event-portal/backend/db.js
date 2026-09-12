@@ -93,6 +93,34 @@ async function initSchema() {
     );
   `);
 
+  // --- Support chat: the "Support" button available on every page ---
+  // A conversation is identified by whatever name+email the visitor types
+  // into the widget (checked against `users` for a possible match, but not
+  // required to match — anyone can start a conversation). Messages come
+  // from three senders: 'visitor', 'bot' (canned auto-replies), and 'admin'
+  // (the organizer replying from the Support tab in /admin).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_conversations (
+      id SERIAL PRIMARY KEY,
+      guest_name TEXT NOT NULL,
+      guest_email TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      unread_by_admin BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      last_message_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_messages (
+      id SERIAL PRIMARY KEY,
+      conversation_id INTEGER REFERENCES support_conversations(id) ON DELETE CASCADE,
+      sender TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
   console.log('Database schema ready.');
 }
 
