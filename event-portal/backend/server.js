@@ -11,7 +11,9 @@ const { verifyToken } = require('./auth');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const streamRoutes = require('./routes/stream');
+const supportRoutes = require('./routes/support');
 const { router: tpSummitRoutes, resolveTpLead } = require('./routes/tpSummit');
+const { autoReply } = require('./supportBot');
 
 const app = express();
 app.use(cors());
@@ -21,6 +23,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stream', streamRoutes);
 app.use('/api/tp-summit', tpSummitRoutes);
+app.use('/api/support', supportRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
@@ -46,11 +49,115 @@ io.use((socket, next) => {
 });
 
 io.on('connection', async (socket) => {
-  if (socket.handshake.auth?.room === 'tp-summit') {
-    return handleTpSummitConnection(socket);
-  }
+  const room = socket.handshake.auth?.room;
+  if (room === 'tp-summit') return handleTpSummitConnection(socket);
+  if (room === 'support-visitor') return handleSupportVisitorConnection(socket);
+  if (room === 'support-admin') return handleSupportAdminConnection(socket);
   return handleDayConnection(socket);
 });
+
+// --- Support chat: the widget on every page, plus the /admin Support tab ---
+async function handleSupportVisitorConnection(socket) {
+  const conversationId = socket.user?.conversationId;
+  if (!conversationId) {
+    socket.disconnect(true);
+    return;
+  }
+  socket.join(`support-${conversationId}`);
+
+  socket.on('support:message', async (content) => {
+    const text = String(content || '').trim().slice(0, 2000);
+    if (!text) return;
+
+    await pool.query(
+      `INSERT INTO support_messages (conversation_id, sender, content) VALUES ($1, 'visitor', $2)`,
+      [conversationId, text]
+    );
+    await pool.query(
+      `UPDATE support_conversations SET last_message_at = NOW(), unread_by_admin = TRUE WHERE id = $1`,
+      [conversationId]
+    );
+
+    const visitorMsg = { conversationId, sender: 'visitor', content: text, created_at: new Date().toISOString() };
+    io.to(`support-${conversationId}`).emit('support:message', visitorMsg);
+    io.to('support-admin').emit('support:update', { conversationId });
+
+    // Personalise the canned reply using whatever attendee record (if any)
+    // this conversation is linked to.
+    let ctx = { matched: false, email: socket.user.email, name: socket.user.name, attendeeName: null, access: null };
+    try {
+      const { rows } = await pool.query(
+        `SELECT u.name AS attendee_name, u.access_day1, u.access_day2, u.access_day3
+         FROM support_conversations sc LEFT JOIN users u ON u.id = sc.user_id
+         WHERE sc.id = $1`,
+        [conversationId]
+      );
+      const row = rows[0];
+      if (row && row.attendee_name !== undefined && row.access_day1 !== null) {
+        ctx = {
+          matched: true,
+          email: socket.user.email,
+          name: socket.user.name,
+          attendeeName: row.attendee_name,
+          access: { day1: row.access_day1, day2: row.access_day2, day3: row.access_day3 },
+        };
+      }
+    } catch (err) {
+      console.error('Failed to load support context', err);
+    }
+
+    const reply = autoReply(text, ctx);
+    await pool.query(
+      `INSERT INTO support_messages (conversation_id, sender, content) VALUES ($1, 'bot', $2)`,
+      [conversationId, reply]
+    );
+    const botMsg = { conversationId, sender: 'bot', content: reply, created_at: new Date().toISOString() };
+    io.to(`support-${conversationId}`).emit('support:message', botMsg);
+    io.to('support-admin').emit('support:update', { conversationId });
+  });
+}
+
+async function handleSupportAdminConnection(socket) {
+  if (!socket.user?.isAdmin) {
+    socket.disconnect(true);
+    return;
+  }
+  socket.join('support-admin');
+
+  // Admin opens a conversation in the Support tab — join its room so future
+  // visitor/bot messages stream in live, and mark it as read.
+  socket.on('support:watch', async ({ conversationId } = {}) => {
+    if (!conversationId) return;
+    socket.join(`support-${conversationId}`);
+    await pool.query('UPDATE support_conversations SET unread_by_admin = FALSE WHERE id = $1', [conversationId]);
+  });
+
+  socket.on('support:reply', async ({ conversationId, content } = {}) => {
+    const text = String(content || '').trim().slice(0, 2000);
+    if (!text || !conversationId) return;
+
+    await pool.query(
+      `INSERT INTO support_messages (conversation_id, sender, content) VALUES ($1, 'admin', $2)`,
+      [conversationId, text]
+    );
+    await pool.query(
+      `UPDATE support_conversations SET last_message_at = NOW(), unread_by_admin = FALSE WHERE id = $1`,
+      [conversationId]
+    );
+
+    const msg = { conversationId, sender: 'admin', content: text, created_at: new Date().toISOString() };
+    io.to(`support-${conversationId}`).emit('support:message', msg);
+    io.to('support-admin').emit('support:update', { conversationId });
+  });
+
+  // Mark a conversation resolved, or reopen one.
+  socket.on('support:status', async ({ conversationId, status } = {}) => {
+    if (!conversationId) return;
+    const safeStatus = status === 'closed' ? 'closed' : 'open';
+    await pool.query('UPDATE support_conversations SET status = $1 WHERE id = $2', [safeStatus, conversationId]);
+    io.to('support-admin').emit('support:update', { conversationId });
+  });
+}
 
 // --- TP Summit: separate free mini-event, own chat room + watch tracking ---
 async function handleTpSummitConnection(socket) {
