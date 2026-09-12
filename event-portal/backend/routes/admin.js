@@ -289,4 +289,35 @@ router.get('/tp-summit-leads', requireAdmin, async (req, res) => {
   res.json({ leads: result });
 });
 
+// GET /api/admin/support/conversations — the Support tab inbox: everyone
+// who's messaged the Support widget, newest activity first, with whether
+// their email matched a registered attendee and a preview of the last
+// message. Real-time updates arrive over the 'support-admin' socket room;
+// this REST endpoint is for the initial load and manual refresh.
+router.get('/support/conversations', requireAdmin, async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT
+      sc.id, sc.guest_name, sc.guest_email, sc.status, sc.unread_by_admin,
+      sc.created_at, sc.last_message_at,
+      (sc.user_id IS NOT NULL) AS matched,
+      (SELECT content FROM support_messages sm WHERE sm.conversation_id = sc.id ORDER BY sm.created_at DESC LIMIT 1) AS last_message,
+      (SELECT sender FROM support_messages sm WHERE sm.conversation_id = sc.id ORDER BY sm.created_at DESC LIMIT 1) AS last_sender
+    FROM support_conversations sc
+    ORDER BY sc.last_message_at DESC
+  `);
+  res.json({ conversations: rows });
+});
+
+// GET /api/admin/support/conversations/:id/messages — full thread for one
+// conversation. Also clears the unread flag, since opening it in the admin
+// UI is what "reading" it means.
+router.get('/support/conversations/:id/messages', requireAdmin, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT sender, content, created_at FROM support_messages WHERE conversation_id = $1 ORDER BY created_at ASC',
+    [req.params.id]
+  );
+  await pool.query('UPDATE support_conversations SET unread_by_admin = FALSE WHERE id = $1', [req.params.id]);
+  res.json({ messages: rows });
+});
+
 module.exports = router;
