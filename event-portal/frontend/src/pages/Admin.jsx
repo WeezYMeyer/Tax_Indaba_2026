@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
 import { api } from '../api.js';
 
 export default function Admin() {
@@ -25,6 +26,17 @@ export default function Admin() {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 25;
 
+  // --- Support inbox ---
+  const [supportConversations, setSupportConversations] = useState([]);
+  const [loadingSupport, setLoadingSupport] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
+  const [supportMessages, setSupportMessages] = useState([]);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [supportDraft, setSupportDraft] = useState('');
+  const supportSocketRef = useRef(null);
+  const selectedConversationIdRef = useRef(null);
+  selectedConversationIdRef.current = selectedConversationId;
+
   async function handleAdminLogin(e) {
     e.preventDefault();
     setError('');
@@ -49,6 +61,80 @@ export default function Admin() {
   useEffect(() => {
     if (adminToken) loadAttendees(adminToken);
   }, [adminToken]);
+
+  async function loadSupportConversations() {
+    setLoadingSupport(true);
+    try {
+      const { conversations } = await api.adminSupportConversations(adminToken);
+      setSupportConversations(conversations);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingSupport(false);
+    }
+  }
+
+  // Connect to the support-admin socket room once logged in, so new
+  // conversations and messages show up live without needing to refresh.
+  useEffect(() => {
+    if (!adminToken) return;
+    loadSupportConversations();
+
+    const socket = io('/', { auth: { token: adminToken, room: 'support-admin' } });
+    supportSocketRef.current = socket;
+
+    socket.on('support:update', () => {
+      loadSupportConversations();
+    });
+
+    socket.on('support:message', (msg) => {
+      if (msg.conversationId === selectedConversationIdRef.current) {
+        setSupportMessages((prev) => [...prev, msg]);
+      }
+    });
+
+    return () => socket.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
+
+  async function selectConversation(id) {
+    setSelectedConversationId(id);
+    setLoadingThread(true);
+    try {
+      const { messages } = await api.adminSupportMessages(id, adminToken);
+      setSupportMessages(messages);
+      supportSocketRef.current?.emit('support:watch', { conversationId: id });
+      // Reflect the read state locally right away rather than waiting on a refetch.
+      setSupportConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread_by_admin: false } : c)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingThread(false);
+    }
+  }
+
+  function sendSupportReply(e) {
+    e.preventDefault();
+    const text = supportDraft.trim();
+    if (!text || !selectedConversationId || !supportSocketRef.current) return;
+    supportSocketRef.current.emit('support:reply', { conversationId: selectedConversationId, content: text });
+    setSupportDraft('');
+  }
+
+  function setConversationStatus(id, status) {
+    supportSocketRef.current?.emit('support:status', { conversationId: id, status });
+    setSupportConversations((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+  }
+
+  function supportSenderLabel(sender) {
+    if (sender === 'visitor') return 'Visitor';
+    if (sender === 'admin') return 'You';
+    return 'Bot';
+  }
+
+  const openSupportCount = supportConversations.filter((c) => c.status === 'open').length;
+  const unreadSupportCount = supportConversations.filter((c) => c.unread_by_admin).length;
+  const selectedConversation = supportConversations.find((c) => c.id === selectedConversationId) || null;
 
   // Splits "Jane Doe" -> firstName "Jane", lastName "Doe" (everything after
   // the first word). Handles multi-word surnames like "Jane Van Der Merwe".
@@ -544,6 +630,100 @@ export default function Admin() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="report-section">
+        <div className="admin-table-header">
+          <div>
+            <h1 style={{ fontSize: '1.3rem', marginBottom: 4 }}>Support</h1>
+            <p style={{ color: 'var(--text-dim)', margin: 0, fontSize: '0.85rem' }}>
+              Everyone who's messaged the Support button on the site. The bot answers common questions first —
+              anything it can't handle (and anyone who asks for a person) lands here for you to reply to directly.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="summary-pill">{openSupportCount} open</span>
+            {unreadSupportCount > 0 && <span className="summary-pill summary-failed">{unreadSupportCount} unread</span>}
+            <button className="btn" onClick={loadSupportConversations} disabled={loadingSupport}>
+              {loadingSupport ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
+        </div>
+
+        <div className="support-inbox">
+          <div className="support-inbox-list">
+            {supportConversations.length === 0 && (
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', padding: '10px 4px' }}>
+                No support conversations yet.
+              </p>
+            )}
+            {supportConversations.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={`support-inbox-row ${selectedConversationId === c.id ? 'support-inbox-row-active' : ''}`}
+                onClick={() => selectConversation(c.id)}
+              >
+                <div className="support-inbox-row-top">
+                  <span className="support-inbox-name">
+                    {c.unread_by_admin && <span className="support-unread-dot" />}
+                    {c.guest_name}
+                  </span>
+                  {c.matched && <span className="email-badge email-badge-sent" title="Matches a registered attendee">verified</span>}
+                  {c.status === 'closed' && <span className="email-badge email-badge-pending">resolved</span>}
+                </div>
+                <div className="support-inbox-email">{c.guest_email}</div>
+                <div className="support-inbox-preview">
+                  {c.last_sender === 'admin' ? 'You: ' : c.last_sender === 'bot' ? 'Bot: ' : ''}
+                  {c.last_message || '—'}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="support-inbox-thread">
+            {!selectedConversation ? (
+              <div className="support-inbox-empty">Select a conversation to view it.</div>
+            ) : (
+              <>
+                <div className="support-thread-header">
+                  <div>
+                    <strong>{selectedConversation.guest_name}</strong>
+                    <div style={{ color: 'var(--text-dim)', fontSize: '0.82rem' }}>{selectedConversation.guest_email}</div>
+                  </div>
+                  <button
+                    className="btn"
+                    onClick={() => setConversationStatus(selectedConversation.id, selectedConversation.status === 'open' ? 'closed' : 'open')}
+                  >
+                    {selectedConversation.status === 'open' ? 'Mark resolved' : 'Reopen'}
+                  </button>
+                </div>
+
+                {loadingThread ? (
+                  <div className="support-inbox-empty">Loading…</div>
+                ) : (
+                  <div className="support-scroll support-scroll-admin">
+                    {supportMessages.map((m, i) => (
+                      <div className={`support-msg support-msg-${m.sender}`} key={i}>
+                        <div className="who">{supportSenderLabel(m.sender)}</div>
+                        <div className="body">{m.content}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <form className="support-input-row" onSubmit={sendSupportReply}>
+                  <input
+                    value={supportDraft}
+                    onChange={(e) => setSupportDraft(e.target.value)}
+                    placeholder="Reply…"
+                  />
+                  <button className="btn btn-primary">Send</button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
