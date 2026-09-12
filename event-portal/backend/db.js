@@ -107,10 +107,14 @@ async function initSchema() {
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       status TEXT NOT NULL DEFAULT 'open',
       unread_by_admin BOOLEAN NOT NULL DEFAULT TRUE,
+      password_shared BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       last_message_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+  // Upgrade path for support_conversations rows created before this column existed.
+  await pool.query(`ALTER TABLE support_conversations ADD COLUMN IF NOT EXISTS password_shared BOOLEAN NOT NULL DEFAULT FALSE;`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS support_messages (
       id SERIAL PRIMARY KEY,
