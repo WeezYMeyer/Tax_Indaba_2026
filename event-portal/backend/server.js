@@ -14,6 +14,7 @@ const streamRoutes = require('./routes/stream');
 const supportRoutes = require('./routes/support');
 const { router: tpSummitRoutes, resolveTpLead } = require('./routes/tpSummit');
 const { autoReply } = require('./supportBot');
+const { decrypt } = require('./passwordVault');
 
 const app = express();
 app.use(cors());
@@ -83,35 +84,51 @@ async function handleSupportVisitorConnection(socket) {
     io.to('support-admin').emit('support:update', { conversationId });
 
     // Personalise the canned reply using whatever attendee record (if any)
-    // this conversation is linked to.
-    let ctx = { matched: false, email: socket.user.email, name: socket.user.name, attendeeName: null, access: null };
+    // this conversation is linked to — including their actual current
+    // password, so login trouble can be resolved on the spot instead of
+    // the bot promising to "send a new one".
+    let ctx = {
+      matched: false,
+      email: socket.user.email,
+      name: socket.user.name,
+      attendeeName: null,
+      access: null,
+      password: null,
+      passwordAlreadyShared: false,
+    };
     try {
       const { rows } = await pool.query(
-        `SELECT u.name AS attendee_name, u.access_day1, u.access_day2, u.access_day3
+        `SELECT u.name AS attendee_name, u.access_day1, u.access_day2, u.access_day3, u.password_encrypted,
+                sc.password_shared
          FROM support_conversations sc LEFT JOIN users u ON u.id = sc.user_id
          WHERE sc.id = $1`,
         [conversationId]
       );
       const row = rows[0];
-      if (row && row.attendee_name !== undefined && row.access_day1 !== null) {
+      if (row && row.access_day1 !== null) {
         ctx = {
           matched: true,
           email: socket.user.email,
           name: socket.user.name,
           attendeeName: row.attendee_name,
           access: { day1: row.access_day1, day2: row.access_day2, day3: row.access_day3 },
+          password: row.password_encrypted ? decrypt(row.password_encrypted) : null,
+          passwordAlreadyShared: Boolean(row.password_shared),
         };
       }
     } catch (err) {
       console.error('Failed to load support context', err);
     }
 
-    const reply = autoReply(text, ctx);
+    const { text: replyText, revealedPassword } = autoReply(text, ctx);
     await pool.query(
       `INSERT INTO support_messages (conversation_id, sender, content) VALUES ($1, 'bot', $2)`,
-      [conversationId, reply]
+      [conversationId, replyText]
     );
-    const botMsg = { conversationId, sender: 'bot', content: reply, created_at: new Date().toISOString() };
+    if (revealedPassword) {
+      await pool.query('UPDATE support_conversations SET password_shared = TRUE WHERE id = $1', [conversationId]);
+    }
+    const botMsg = { conversationId, sender: 'bot', content: replyText, created_at: new Date().toISOString() };
     io.to(`support-${conversationId}`).emit('support:message', botMsg);
     io.to('support-admin').emit('support:update', { conversationId });
   });
