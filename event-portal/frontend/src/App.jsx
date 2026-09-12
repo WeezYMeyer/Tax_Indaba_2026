@@ -4,6 +4,7 @@ import Login from './pages/Login.jsx';
 import Event from './pages/Event.jsx';
 import Admin from './pages/Admin.jsx';
 import TPSummit from './pages/TPSummit.jsx';
+import SupportWidget from './SupportWidget.jsx';
 import { api } from './api.js';
 
 function useCurrentUser() {
@@ -54,6 +55,10 @@ function TopBar({ user }) {
 
 export default function App() {
   const [user, setUser] = useCurrentUser();
+  const location = useLocation();
+  // The organizer's own admin panel has its own Support tab for replying —
+  // the attendee-facing widget doesn't belong there too.
+  const showSupportWidget = !location.pathname.startsWith('/admin');
 
   return (
     <div className="shell">
@@ -71,6 +76,7 @@ export default function App() {
         <Route path="/stream" element={<Navigate to="/event" replace />} />
         <Route path="*" element={<Navigate to={user ? '/event' : '/login'} replace />} />
       </Routes>
+      {showSupportWidget && <SupportWidget />}
     </div>
   );
 }
