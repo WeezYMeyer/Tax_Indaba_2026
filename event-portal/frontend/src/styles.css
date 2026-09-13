@@ -749,7 +749,7 @@ table.attendees td {
 /* --- TP Summit teal theme (pulled from the bridge/harbour background photo) ---
    Overrides the same CSS variables every component already uses (buttons,
    cards, tabs, chat, holding slide) so nothing needs its own duplicate
-   styling â€” it just re-themes gold -> teal wherever .tp-theme wraps it. */
+   styling — it just re-themes gold -> teal wherever .tp-theme wraps it. */
 .tp-theme {
   --navy-deep: #051a20;
   --navy: #0c2b33;
@@ -915,19 +915,87 @@ table.attendees td {
   .support-widget { right: 12px; bottom: 12px; }
 }
 
+/* --- Admin tabs (Attendees / Support) --- */
+.admin-tabs {
+  display: flex;
+  gap: 28px;
+  margin: 10px 0 22px;
+  border-bottom: 1px solid var(--card-border);
+}
+.admin-tab {
+  position: relative;
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 10px 2px 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-tab:hover { color: var(--text); }
+.admin-tab-active {
+  color: var(--gold-light);
+  border-bottom-color: var(--gold);
+}
+.admin-tab-badge {
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 1px 7px;
+  line-height: 1.4;
+}
+.admin-tab-panel {
+  margin-top: 4px;
+}
+
 /* --- Support inbox (inside /admin) --- */
+.support-filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.support-filter-chip {
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 7px 13px;
+  border-radius: 20px;
+  border: 1px solid var(--card-border);
+  background: rgba(255,255,255,0.02);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.support-filter-chip:hover { border-color: var(--gold); color: var(--text); }
+.support-filter-chip-active {
+  border-color: var(--gold);
+  background: rgba(201, 154, 60, 0.12);
+  color: var(--gold-light);
+}
+.support-filter-count { font-weight: 700; margin-left: 2px; }
+
 .support-inbox {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 280px 1fr;
   gap: 14px;
-  margin-top: 16px;
-  min-height: 420px;
+  /* A fixed, viewport-relative height is what makes the two panes below
+     actually scroll internally instead of growing the whole page downward
+     as more messages/conversations come in. */
+  height: min(640px, 70vh);
 }
 .support-inbox-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 560px;
+  height: 100%;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -959,6 +1027,13 @@ table.attendees td {
   align-items: center;
   gap: 6px;
 }
+.support-inbox-time {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  margin-left: auto;
+  white-space: nowrap;
+}
 .support-unread-dot {
   width: 8px;
   height: 8px;
@@ -980,6 +1055,33 @@ table.attendees td {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.support-inbox-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.support-bucket-badge {
+  font-family: var(--font-heading);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+.support-bucket-needs_reply {
+  background: rgba(201, 154, 60, 0.18);
+  color: var(--gold-light);
+}
+.support-bucket-waiting {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-dim);
+}
+.support-bucket-resolved {
+  background: rgba(255,255,255,0.03);
+  color: var(--text-dim);
+}
 .support-inbox-thread {
   display: flex;
   flex-direction: column;
@@ -987,7 +1089,7 @@ table.attendees td {
   border: 1px solid var(--card-border);
   border-radius: var(--radius);
   overflow: hidden;
-  min-height: 420px;
+  height: 100%;
 }
 .support-inbox-empty {
   flex: 1;
@@ -1006,14 +1108,24 @@ table.attendees td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--card-border);
   gap: 10px;
+  flex-shrink: 0;
 }
-.support-scroll-admin { min-height: 300px; }
+.support-scroll-admin {
+  /* Overrides .support-scroll's min-height: without this, a flex child's
+     default min-height is its content size, so overflow-y:auto never
+     actually kicks in and the panel just keeps growing instead. */
+  min-height: 0;
+}
 
 @media (max-width: 720px) {
   .support-inbox {
     grid-template-columns: 1fr;
+    height: auto;
   }
   .support-inbox-list {
-    max-height: 260px;
+    height: 240px;
+  }
+  .support-inbox-thread {
+    height: 460px;
   }
 }
