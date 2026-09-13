@@ -26,6 +26,10 @@ export default function Admin() {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 25;
 
+  // --- Top-level admin tabs (Attendees / Support), so Support doesn't
+  // require scrolling past everything else to reach ---
+  const [activeTab, setActiveTab] = useState('attendees');
+
   // --- Support inbox ---
   const [supportConversations, setSupportConversations] = useState([]);
   const [loadingSupport, setLoadingSupport] = useState(false);
@@ -33,9 +37,12 @@ export default function Admin() {
   const [supportMessages, setSupportMessages] = useState([]);
   const [loadingThread, setLoadingThread] = useState(false);
   const [supportDraft, setSupportDraft] = useState('');
+  const [supportFilter, setSupportFilter] = useState('needs_reply');
+  const [supportSearch, setSupportSearch] = useState('');
   const supportSocketRef = useRef(null);
   const selectedConversationIdRef = useRef(null);
   selectedConversationIdRef.current = selectedConversationId;
+  const supportThreadScrollRef = useRef(null);
 
   async function handleAdminLogin(e) {
     e.preventDefault();
@@ -97,6 +104,12 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken]);
 
+  // Keep the open thread scrolled to the newest message, same as the
+  // visitor-facing widget does — otherwise it just grows downward forever.
+  useEffect(() => {
+    supportThreadScrollRef.current?.scrollTo({ top: supportThreadScrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [supportMessages]);
+
   async function selectConversation(id) {
     setSelectedConversationId(id);
     setLoadingThread(true);
@@ -119,6 +132,14 @@ export default function Admin() {
     if (!text || !selectedConversationId || !supportSocketRef.current) return;
     supportSocketRef.current.emit('support:reply', { conversationId: selectedConversationId, content: text });
     setSupportDraft('');
+    // Move it to "Waiting on them" immediately rather than waiting on the
+    // socket round trip — this is the bit that actually keeps the "Needs
+    // reply" queue manageable when a lot of people are messaging at once.
+    setSupportConversations((prev) => prev.map((c) => (
+      c.id === selectedConversationId
+        ? { ...c, last_sender: 'admin', last_message: text, last_message_at: new Date().toISOString(), unread_by_admin: false }
+        : c
+    )));
   }
 
   function setConversationStatus(id, status) {
@@ -132,8 +153,62 @@ export default function Admin() {
     return 'Bot';
   }
 
-  const openSupportCount = supportConversations.filter((c) => c.status === 'open').length;
-  const unreadSupportCount = supportConversations.filter((c) => c.unread_by_admin).length;
+  // A conversation is in exactly one of three buckets: it needs a reply
+  // from a person (nobody from the team has answered the latest message
+  // yet — whether or not the bot did), it's waiting on the visitor to
+  // write back after a person replied, or it's been marked resolved.
+  function supportBucket(c) {
+    if (c.status === 'closed') return 'resolved';
+    return c.last_sender === 'admin' ? 'waiting' : 'needs_reply';
+  }
+
+  function bucketLabel(bucket) {
+    if (bucket === 'needs_reply') return 'Needs reply';
+    if (bucket === 'waiting') return 'Waiting on them';
+    return 'Resolved';
+  }
+
+  // Compact "12m ago" / "3h ago" style label — good enough for triaging a
+  // busy inbox without pulling in a date library.
+  function timeAgo(iso) {
+    if (!iso) return '';
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  }
+
+  const needsReplyCount = supportConversations.filter((c) => supportBucket(c) === 'needs_reply').length;
+  const waitingCount = supportConversations.filter((c) => supportBucket(c) === 'waiting').length;
+  const resolvedCount = supportConversations.filter((c) => supportBucket(c) === 'resolved').length;
+
+  const supportSearchQuery = supportSearch.trim().toLowerCase();
+  const visibleConversations = supportConversations
+    .filter((c) => supportFilter === 'all' || supportBucket(c) === supportFilter)
+    .filter((c) => {
+      if (!supportSearchQuery) return true;
+      return c.guest_name.toLowerCase().includes(supportSearchQuery) || c.guest_email.toLowerCase().includes(supportSearchQuery);
+    })
+    .sort((a, b) => {
+      const aTime = new Date(a.last_message_at).getTime();
+      const bTime = new Date(b.last_message_at).getTime();
+      // Needs-reply queue: oldest waiting person first, so with a lot of
+      // people messaging at once nobody sits forgotten at the bottom.
+      // Every other view: most recent activity first.
+      return supportFilter === 'needs_reply' ? aTime - bTime : bTime - aTime;
+    });
+
+  function supportEmptyMessage() {
+    if (supportSearchQuery) return 'No conversations match that search.';
+    if (supportFilter === 'needs_reply') return "Nothing needs a reply right now — you're caught up.";
+    if (supportFilter === 'waiting') return "Nobody's currently waiting on a reply from them.";
+    if (supportFilter === 'resolved') return 'No resolved conversations yet.';
+    return 'No support conversations yet.';
+  }
+
   const selectedConversation = supportConversations.find((c) => c.id === selectedConversationId) || null;
 
   // Splits "Jane Doe" -> firstName "Jane", lastName "Doe" (everything after
@@ -360,6 +435,29 @@ export default function Admin() {
   return (
     <div className="admin-wrap">
       <div className="eyebrow">Admin</div>
+
+      <div className="admin-tabs">
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === 'attendees' ? 'admin-tab-active' : ''}`}
+          onClick={() => setActiveTab('attendees')}
+        >
+          Attendees
+        </button>
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === 'support' ? 'admin-tab-active' : ''}`}
+          onClick={() => setActiveTab('support')}
+        >
+          Support
+          {needsReplyCount > 0 && <span className="admin-tab-badge">{needsReplyCount}</span>}
+        </button>
+      </div>
+
+      {error && <div className="error-msg">{error}</div>}
+
+      {activeTab === 'attendees' && (
+      <>
       <h1>Attendee access</h1>
       <p style={{ color: 'var(--text-dim)' }}>
         Copy the Name column from wherever you're given the list and paste it in the left box, one name per line —
@@ -367,8 +465,6 @@ export default function Admin() {
         pairs together, and so on. Surname is optional (first word of each line is treated as the first name, the
         rest as surname — this is what shows in chat, never their email).
       </p>
-
-      {error && <div className="error-msg">{error}</div>}
 
       <form onSubmit={handleBulkSubmit}>
         <div className="field">
@@ -631,54 +727,87 @@ export default function Admin() {
           </table>
         )}
       </div>
+      </>
+      )}
 
-      <div className="report-section">
+      {activeTab === 'support' && (
+      <div className="admin-tab-panel">
         <div className="admin-table-header">
           <div>
             <h1 style={{ fontSize: '1.3rem', marginBottom: 4 }}>Support</h1>
             <p style={{ color: 'var(--text-dim)', margin: 0, fontSize: '0.85rem' }}>
               Everyone who's messaged the Support button on the site. The bot answers common questions first —
-              anything it can't handle (and anyone who asks for a person) lands here for you to reply to directly.
+              anything it can't handle (and anyone who asks for a person) lands here. Once you reply, it moves to
+              "Waiting on them" and drops out of your queue until they write back.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="summary-pill">{openSupportCount} open</span>
-            {unreadSupportCount > 0 && <span className="summary-pill summary-failed">{unreadSupportCount} unread</span>}
-            <button className="btn" onClick={loadSupportConversations} disabled={loadingSupport}>
-              {loadingSupport ? 'Loading…' : 'Refresh'}
+          <button className="btn" onClick={loadSupportConversations} disabled={loadingSupport}>
+            {loadingSupport ? 'Loading…' : 'Refresh'}
+          </button>
+        </div>
+
+        <div className="support-filter-row">
+          {[
+            { key: 'needs_reply', label: 'Needs reply', count: needsReplyCount },
+            { key: 'waiting', label: 'Waiting on them', count: waitingCount },
+            { key: 'resolved', label: 'Resolved', count: resolvedCount },
+            { key: 'all', label: 'All', count: supportConversations.length },
+          ].map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              className={`support-filter-chip ${supportFilter === f.key ? 'support-filter-chip-active' : ''}`}
+              onClick={() => setSupportFilter(f.key)}
+            >
+              {f.label} <span className="support-filter-count">{f.count}</span>
             </button>
-          </div>
+          ))}
+        </div>
+
+        <div className="field" style={{ marginTop: 10, marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="Search by name or email…"
+            value={supportSearch}
+            onChange={(e) => setSupportSearch(e.target.value)}
+          />
         </div>
 
         <div className="support-inbox">
           <div className="support-inbox-list">
-            {supportConversations.length === 0 && (
+            {visibleConversations.length === 0 && (
               <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', padding: '10px 4px' }}>
-                No support conversations yet.
+                {supportEmptyMessage()}
               </p>
             )}
-            {supportConversations.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className={`support-inbox-row ${selectedConversationId === c.id ? 'support-inbox-row-active' : ''}`}
-                onClick={() => selectConversation(c.id)}
-              >
-                <div className="support-inbox-row-top">
-                  <span className="support-inbox-name">
-                    {c.unread_by_admin && <span className="support-unread-dot" />}
-                    {c.guest_name}
-                  </span>
-                  {c.matched && <span className="email-badge email-badge-sent" title="Matches a registered attendee">verified</span>}
-                  {c.status === 'closed' && <span className="email-badge email-badge-pending">resolved</span>}
-                </div>
-                <div className="support-inbox-email">{c.guest_email}</div>
-                <div className="support-inbox-preview">
-                  {c.last_sender === 'admin' ? 'You: ' : c.last_sender === 'bot' ? 'Bot: ' : ''}
-                  {c.last_message || '—'}
-                </div>
-              </button>
-            ))}
+            {visibleConversations.map((c) => {
+              const bucket = supportBucket(c);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`support-inbox-row ${selectedConversationId === c.id ? 'support-inbox-row-active' : ''}`}
+                  onClick={() => selectConversation(c.id)}
+                >
+                  <div className="support-inbox-row-top">
+                    <span className="support-inbox-name">
+                      {c.unread_by_admin && <span className="support-unread-dot" />}
+                      {c.guest_name}
+                    </span>
+                    <span className="support-inbox-time">{timeAgo(c.last_message_at)}</span>
+                  </div>
+                  <div className="support-inbox-email">{c.guest_email}</div>
+                  <div className="support-inbox-preview">
+                    {c.last_sender === 'admin' ? 'You: ' : c.last_sender === 'bot' ? 'Bot: ' : ''}
+                    {c.last_message || '—'}
+                  </div>
+                  <div className="support-inbox-row-bottom">
+                    <span className={`support-bucket-badge support-bucket-${bucket}`}>{bucketLabel(bucket)}</span>
+                    {c.matched && <span className="email-badge email-badge-sent" title="Matches a registered attendee">verified</span>}
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           <div className="support-inbox-thread">
@@ -702,7 +831,7 @@ export default function Admin() {
                 {loadingThread ? (
                   <div className="support-inbox-empty">Loading…</div>
                 ) : (
-                  <div className="support-scroll support-scroll-admin">
+                  <div className="support-scroll support-scroll-admin" ref={supportThreadScrollRef}>
                     {supportMessages.map((m, i) => (
                       <div className={`support-msg support-msg-${m.sender}`} key={i}>
                         <div className="who">{supportSenderLabel(m.sender)}</div>
@@ -725,6 +854,7 @@ export default function Admin() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
