@@ -108,12 +108,15 @@ async function initSchema() {
       status TEXT NOT NULL DEFAULT 'open',
       unread_by_admin BOOLEAN NOT NULL DEFAULT TRUE,
       password_shared BOOLEAN NOT NULL DEFAULT FALSE,
+      human_engaged BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       last_message_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
-  // Upgrade path for support_conversations rows created before this column existed.
+  // Upgrade path for support_conversations rows created before these columns existed.
   await pool.query(`ALTER TABLE support_conversations ADD COLUMN IF NOT EXISTS password_shared BOOLEAN NOT NULL DEFAULT FALSE;`);
+  // Once a real person has replied, the bot goes quiet for the rest of that conversation.
+  await pool.query(`ALTER TABLE support_conversations ADD COLUMN IF NOT EXISTS human_engaged BOOLEAN NOT NULL DEFAULT FALSE;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS support_messages (
