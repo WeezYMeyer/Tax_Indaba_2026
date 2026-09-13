@@ -83,10 +83,27 @@ async function handleSupportVisitorConnection(socket) {
     io.to(`support-${conversationId}`).emit('support:message', visitorMsg);
     io.to('support-admin').emit('support:update', { conversationId });
 
-    // Personalise the canned reply using whatever attendee record (if any)
-    // this conversation is linked to — including their actual current
-    // password, so login trouble can be resolved on the spot instead of
-    // the bot promising to "send a new one".
+    // Look up the conversation's context in one query: whether the email
+    // matches a registered attendee (for personalised replies + their real
+    // password), and whether a person has already taken this conversation
+    // over — once someone from the team has replied, the bot stays quiet
+    // for the rest of it rather than talking over her.
+    let row = null;
+    try {
+      const { rows } = await pool.query(
+        `SELECT u.name AS attendee_name, u.access_day1, u.access_day2, u.access_day3, u.password_encrypted,
+                sc.password_shared, sc.human_engaged
+         FROM support_conversations sc LEFT JOIN users u ON u.id = sc.user_id
+         WHERE sc.id = $1`,
+        [conversationId]
+      );
+      row = rows[0];
+    } catch (err) {
+      console.error('Failed to load support context', err);
+    }
+
+    if (row?.human_engaged) return; // a person's already handling this one — bot stays out of it
+
     let ctx = {
       matched: false,
       email: socket.user.email,
@@ -96,28 +113,16 @@ async function handleSupportVisitorConnection(socket) {
       password: null,
       passwordAlreadyShared: false,
     };
-    try {
-      const { rows } = await pool.query(
-        `SELECT u.name AS attendee_name, u.access_day1, u.access_day2, u.access_day3, u.password_encrypted,
-                sc.password_shared
-         FROM support_conversations sc LEFT JOIN users u ON u.id = sc.user_id
-         WHERE sc.id = $1`,
-        [conversationId]
-      );
-      const row = rows[0];
-      if (row && row.access_day1 !== null) {
-        ctx = {
-          matched: true,
-          email: socket.user.email,
-          name: socket.user.name,
-          attendeeName: row.attendee_name,
-          access: { day1: row.access_day1, day2: row.access_day2, day3: row.access_day3 },
-          password: row.password_encrypted ? decrypt(row.password_encrypted) : null,
-          passwordAlreadyShared: Boolean(row.password_shared),
-        };
-      }
-    } catch (err) {
-      console.error('Failed to load support context', err);
+    if (row && row.access_day1 !== null) {
+      ctx = {
+        matched: true,
+        email: socket.user.email,
+        name: socket.user.name,
+        attendeeName: row.attendee_name,
+        access: { day1: row.access_day1, day2: row.access_day2, day3: row.access_day3 },
+        password: row.password_encrypted ? decrypt(row.password_encrypted) : null,
+        passwordAlreadyShared: Boolean(row.password_shared),
+      };
     }
 
     const { text: replyText, revealedPassword } = autoReply(text, ctx);
@@ -157,8 +162,10 @@ async function handleSupportAdminConnection(socket) {
       `INSERT INTO support_messages (conversation_id, sender, content) VALUES ($1, 'admin', $2)`,
       [conversationId, text]
     );
+    // human_engaged = TRUE from here on: the bot stops auto-replying in
+    // this conversation once a real person has stepped in.
     await pool.query(
-      `UPDATE support_conversations SET last_message_at = NOW(), unread_by_admin = FALSE WHERE id = $1`,
+      `UPDATE support_conversations SET last_message_at = NOW(), unread_by_admin = FALSE, human_engaged = TRUE WHERE id = $1`,
       [conversationId]
     );
 
