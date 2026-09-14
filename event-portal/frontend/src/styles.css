@@ -447,6 +447,13 @@ a { color: inherit; }
   border-radius: var(--radius);
   overflow: hidden;
   min-height: 0;
+  /* The real fix: .chat-col sits in a CSS Grid row sized "auto", which
+     tracks the TALLEST item's natural content height — and an unbounded
+     message list has no natural height, so the row (and the whole page)
+     just kept growing with every message. min-height:0 on the scroll
+     region alone can't fix that; the column itself needs a definite,
+     bounded height to stretch/scroll within. */
+  height: min(620px, calc(100vh - 260px));
 }
 .chat-col .chat-scroll {
   flex: 1;
