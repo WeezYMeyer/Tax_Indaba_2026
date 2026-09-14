@@ -455,6 +455,11 @@ a { color: inherit; }
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Same root cause as the support panels below: a flex child's default
+     min-height is its content size, so without this override the message
+     list just keeps growing (stretching the whole page) instead of
+     scrolling internally once it's full of messages. */
+  min-height: 0;
 }
 .chat-col .chat-input-row {
   padding: 12px;
@@ -830,6 +835,14 @@ table.attendees td {
   overflow: hidden;
   box-shadow: 0 30px 80px -20px rgba(0,0,0,0.7);
 }
+.support-panel-chat {
+  /* A definite height (not just max-height) once the chat stage is showing,
+     so the scroll region below has an actual budget to fill and shrink
+     into. With only max-height, the browser sizes this box to fit its
+     content first and clips afterward — which is what let the message
+     list keep stretching taller with every new line instead of scrolling. */
+  height: min(480px, calc(100vh - 120px));
+}
 .support-panel-header {
   display: flex;
   align-items: center;
@@ -868,7 +881,11 @@ table.attendees td {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 180px;
+  /* A flex child's default min-height is its content size, which is what
+     let this keep growing instead of scrolling once .support-panel-chat
+     gives the panel a real height to work with — min-height: 0 lets it
+     shrink below that and hand overflow to the scrollbar instead. */
+  min-height: 0;
 }
 .support-input-row {
   padding: 12px;
@@ -904,6 +921,12 @@ table.attendees td {
   letter-spacing: 0.03em;
   color: var(--gold-light);
   margin-bottom: 3px;
+}
+.support-msg .body {
+  /* Bot replies (e.g. the password message) contain real \n line breaks —
+     without this, a plain div collapses them into one line. */
+  white-space: pre-line;
+  word-break: break-word;
 }
 .support-msg-visitor {
   align-self: flex-end;
